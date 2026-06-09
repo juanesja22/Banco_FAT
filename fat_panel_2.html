@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FAT Panel Controller</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #06080c;
+  --bg2:      #0b0f17;
+  --bg3:      #101622;
+  --bg4:      #161e2e;
+  --border:   #1c2a3f;
+  --border2:  #243550;
+  --text:     #5a7a9a;
+  --text2:    #8aaac8;
+  --text3:    #b8d0e8;
+  --amber:    #ff9200;
+  --amber2:   #ffb84d;
+  --amber-bg: rgba(255,146,0,0.08);
+  --green:    #00d67a;
+  --green2:   #00ff9a;
+  --green-bg: rgba(0,214,122,0.08);
+  --red:      #ff3355;
+  --red-bg:   rgba(255,51,85,0.08);
+  --blue:     #00a8ff;
+  --blue2:    #4dc8ff;
+  --blue-bg:  rgba(0,168,255,0.08);
+  --teal:     #00c8b4;
+  --mono:  'Share Tech Mono', monospace;
+  --title: 'Rajdhani', sans-serif;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text2);
+  font-family: var(--mono);
+  font-size: 12px;
+  min-height: 100vh;
+  padding: 14px;
+  background-image: repeating-linear-gradient(
+    0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px
+  );
+}
+
+/* HEADER */
+.header {
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--bg2); border:1px solid var(--border);
+  border-top:2px solid var(--amber); padding:10px 18px; margin-bottom:14px;
+}
+.header-left { display:flex; align-items:baseline; gap:14px; }
+.title { font-family:var(--title); font-weight:700; font-size:18px; letter-spacing:5px; color:var(--amber); text-transform:uppercase; }
+.subtitle { font-size:10px; letter-spacing:3px; color:var(--text); text-transform:uppercase; }
+.header-right { display:flex; align-items:center; gap:16px; }
+.conn-status { display:flex; align-items:center; gap:8px; font-size:10px; letter-spacing:2px; color:var(--text); text-transform:uppercase; }
+.status-led { width:9px; height:9px; border-radius:50%; background:#1a2535; border:1px solid #2a3a50; transition:all 0.3s; }
+.status-led.on { background:var(--green); border-color:var(--green); box-shadow:0 0 10px var(--green),0 0 20px rgba(0,214,122,0.4); }
+.btn { font-family:var(--mono); font-size:10px; letter-spacing:3px; text-transform:uppercase; background:transparent; border:1px solid var(--border2); color:var(--text2); padding:7px 18px; cursor:pointer; transition:all 0.2s; }
+.btn-connect { border-color:var(--amber); color:var(--amber); }
+.btn-connect:hover { background:var(--amber); color:var(--bg); }
+.btn-connect.active { background:var(--amber-bg); border-color:var(--amber); color:var(--amber2); }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.5} }
+.connecting .status-led { animation:pulse 0.8s ease infinite; background:var(--amber); border-color:var(--amber); }
+
+/* LAYOUT */
+.row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+.panel { background:var(--bg2); border:1px solid var(--border); padding:16px; }
+.panel-head { display:flex; align-items:center; gap:10px; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border); }
+.panel-icon { width:4px; height:16px; flex-shrink:0; }
+.panel-title { font-family:var(--title); font-weight:500; font-size:11px; letter-spacing:4px; text-transform:uppercase; color:var(--text3); }
+.panel-count { margin-left:auto; font-size:9px; letter-spacing:2px; color:var(--text); background:var(--bg3); border:1px solid var(--border); padding:2px 8px; }
+.relay-reset { font-family:var(--mono); font-size:9px; letter-spacing:2px; text-transform:uppercase; background:transparent; border:1px solid var(--border2); color:var(--text); padding:2px 8px; cursor:pointer; transition:all 0.15s; margin-left:auto; }
+.relay-reset:hover { border-color:var(--red); color:var(--red); background:var(--red-bg); }
+
+/* RELAYS */
+.relay-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.relay-btn { display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 6px; background:var(--bg3); border:1px solid var(--border); cursor:pointer; transition:all 0.15s; user-select:none; position:relative; overflow:hidden; }
+.relay-btn::before { content:''; position:absolute; inset:0; background:var(--amber-bg); opacity:0; transition:opacity 0.15s; }
+.relay-btn.on { border-color:var(--amber); }
+.relay-btn.on::before { opacity:1; }
+.relay-btn:hover { border-color:var(--border2); }
+.relay-btn.on:hover { border-color:var(--amber2); }
+.relay-lamp { width:13px; height:13px; border-radius:50%; background:#0f1520; border:1.5px solid #1c2a3f; transition:all 0.2s; position:relative; z-index:1; }
+.relay-btn.on .relay-lamp { background:var(--amber); border-color:var(--amber2); box-shadow:0 0 8px var(--amber),0 0 16px rgba(255,146,0,0.3); }
+.relay-tag { font-size:10px; color:var(--text); letter-spacing:1px; position:relative; z-index:1; transition:color 0.15s; }
+.relay-btn.on .relay-tag { color:var(--amber2); }
+.relay-state { font-size:8px; letter-spacing:1px; color:var(--border2); position:relative; z-index:1; transition:color 0.15s; }
+.relay-btn.on .relay-state { color:var(--amber); }
+
+/* PILOTS */
+.pilot-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.pilot { display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px 6px; background:var(--bg3); border:1px solid var(--border); transition:all 0.2s; }
+.pilot.on { border-color:var(--green); background:var(--green-bg); }
+.pilot-lamp { width:16px; height:16px; border-radius:50%; background:#0a1218; border:2px solid #1c2a3f; transition:all 0.25s; }
+.pilot.on .pilot-lamp { background:var(--green); border-color:var(--green2); box-shadow:0 0 10px var(--green),0 0 22px rgba(0,214,122,0.35); }
+.pilot-tag { font-size:10px; color:var(--text); letter-spacing:1px; transition:color 0.2s; }
+.pilot.on .pilot-tag { color:var(--green); }
+
+/* AO PANEL */
+.ao-panel { background:var(--bg2); border:1px solid var(--border); padding:16px; margin-bottom:14px; }
+.ao-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+/* AO CARD */
+.ao-card {
+  background:var(--bg3);
+  border:1px solid var(--border);
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  gap:11px;
+}
+
+/* Card top row */
+.ao-card-head { display:flex; align-items:center; justify-content:space-between; }
+.ao-ch-label { font-family:var(--title); font-weight:700; font-size:15px; letter-spacing:3px; color:var(--blue2); }
+
+/* Mode tabs */
+.mode-tabs { display:flex; gap:3px; }
+.mode-tab {
+  font-family:var(--mono); font-size:9px; letter-spacing:1px;
+  padding:3px 9px; border:1px solid var(--border); background:none;
+  color:var(--text); cursor:pointer; transition:all 0.15s;
+}
+.mode-tab:hover { border-color:var(--border2); color:var(--text2); }
+.mode-tab.active { border-color:var(--blue); color:var(--blue); background:var(--blue-bg); }
+.mode-tab.tab-custom.active { border-color:var(--teal); color:var(--teal); background:rgba(0,200,180,0.08); }
+
+/* Custom config */
+.custom-config {
+  display:none; align-items:center; flex-wrap:wrap; gap:5px 8px;
+  padding:8px 10px; background:var(--bg4);
+  border:1px solid var(--border); border-left:2px solid var(--teal);
+}
+.custom-config.visible { display:flex; }
+.custom-config label { font-size:9px; letter-spacing:1px; color:var(--text); white-space:nowrap; }
+.custom-config input {
+  font-family:var(--mono); font-size:11px; background:var(--bg2);
+  border:1px solid var(--border2); color:var(--text3);
+  padding:3px 6px; outline:none; transition:border-color 0.15s;
+  width:56px; text-align:center;
+}
+.custom-config input.unit-in { width:44px; }
+.custom-config input:focus { border-color:var(--teal); color:var(--teal); }
+.cfg-sep { font-size:10px; color:var(--border2); }
+
+/* Slider + step buttons */
+.ao-slider-row { display:flex; align-items:center; gap:8px; }
+
+.step-btn {
+  flex-shrink:0;
+  width:32px; height:32px;
+  background:var(--bg4);
+  border:1px solid var(--border2);
+  color:var(--text2);
+  font-size:20px; line-height:1;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  user-select:none;
+  transition:all 0.12s;
+  font-family:var(--mono);
+}
+.step-btn:hover { border-color:var(--blue); color:var(--blue); background:var(--blue-bg); }
+.step-btn:active { transform:scale(0.9); }
+
+input[type="range"].ao-range {
+  -webkit-appearance:none; appearance:none;
+  flex:1; height:4px; outline:none; border-radius:0; cursor:pointer;
+}
+input[type="range"].ao-range::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  width:18px; height:18px;
+  background:var(--bg2); border:2px solid var(--blue);
+  border-radius:50%; cursor:pointer;
+  box-shadow:0 0 6px rgba(0,168,255,0.5);
+  transition:transform 0.1s, box-shadow 0.1s;
+}
+input[type="range"].ao-range:active::-webkit-slider-thumb {
+  transform:scale(1.25); box-shadow:0 0 14px rgba(0,168,255,0.8);
+}
+
+/* Value display area */
+.ao-value-area {
+  display:flex; align-items:flex-end; justify-content:space-between;
+  border-top:1px solid var(--border); padding-top:10px;
+}
+.ao-main-val { display:flex; align-items:baseline; gap:7px; }
+.ao-number {
+  font-family:var(--title); font-weight:700; font-size:36px;
+  color:var(--blue); letter-spacing:1px; line-height:1;
+  transition:color 0.2s; font-variant-numeric:tabular-nums;
+  min-width:3ch;
+}
+.ao-unit {
+  font-family:var(--title); font-weight:300; font-size:15px;
+  color:var(--text2); letter-spacing:2px; margin-bottom:4px;
+}
+.ao-ma-ref {
+  text-align:right; display:flex; flex-direction:column;
+  align-items:flex-end; gap:3px;
+}
+.ao-ma-val  { font-size:13px; color:var(--teal); letter-spacing:1px; }
+.ao-ma-lbl  { font-size:8px;  color:var(--text);  letter-spacing:2px; text-transform:uppercase; }
+.ao-pct-bar { height:2px; background:var(--border); margin-top:8px; position:relative; }
+.ao-pct-fill { position:absolute; left:0; top:0; bottom:0; background:var(--blue); box-shadow:0 0 4px var(--blue); transition:width 0.15s; width:0%; }
+
+/* FEEDBACK */
+.fb-panel { background:var(--bg2); border:1px solid var(--border); padding:16px; }
+.fb-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.fb-card { background:var(--bg3); border:1px solid var(--border); padding:16px 14px; position:relative; overflow:hidden; }
+.fb-card::after { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:var(--teal); opacity:0.5; }
+.fb-name { font-family:var(--title); font-weight:500; font-size:10px; letter-spacing:3px; color:var(--text); text-transform:uppercase; margin-bottom:10px; }
+.fb-reading { display:flex; align-items:baseline; gap:5px; margin-bottom:10px; }
+.fb-value { font-family:var(--title); font-weight:700; font-size:28px; color:var(--teal); letter-spacing:2px; line-height:1; transition:color 0.3s; font-variant-numeric:tabular-nums; }
+.fb-value.warn  { color:var(--amber); }
+.fb-value.error { color:var(--red); }
+.fb-unit { font-size:11px; color:var(--text); letter-spacing:1px; align-self:flex-end; margin-bottom:3px; }
+.fb-bar-wrap { position:relative; height:3px; background:var(--border); margin-bottom:6px; }
+.fb-bar { position:absolute; left:0; top:0; bottom:0; background:var(--teal); box-shadow:0 0 6px var(--teal); transition:width 0.3s ease; width:0%; }
+.fb-bar.warn  { background:var(--amber); box-shadow:0 0 6px var(--amber); }
+.fb-bar.error { background:var(--red);   box-shadow:0 0 6px var(--red); }
+.fb-range { display:flex; justify-content:space-between; font-size:8px; color:var(--border2); letter-spacing:1px; }
+
+/* FOOTER */
+.footer { display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:10px; border-top:1px solid var(--border); font-size:9px; letter-spacing:2px; color:var(--text); }
+#lastUpdate { color:var(--border2); }
+
+.offline-bar { background:var(--red-bg); border:1px solid var(--red); color:var(--red); text-align:center; padding:6px; font-size:10px; letter-spacing:3px; margin-bottom:14px; display:none; }
+.offline-bar.show { display:block; }
+
+/* ==========================================
+   RESPONSIVE: TABLET
+   ========================================== */
+@media (max-width: 1024px) {
+  .row { grid-template-columns: 1fr; }
+  .ao-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ==========================================
+   RESPONSIVE: MÓVIL
+   ========================================== */
+@media (max-width: 768px) {
+  body { padding: 8px; font-size: 11px; }
+  .header { flex-direction: column; align-items: flex-start; gap: 10px; padding: 10px 12px; }
+  .title { font-size: 15px; letter-spacing: 3px; }
+  .header-right { width: 100%; justify-content: space-between; }
+  
+  .row { grid-template-columns: 1fr; gap: 10px; margin-bottom: 10px; }
+  .panel { padding: 12px; }
+  
+  .relay-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .relay-btn { padding: 8px 4px; gap: 4px; }
+  .relay-lamp { width: 11px; height: 11px; }
+  .relay-tag { font-size: 9px; }
+  
+  .pilot-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .pilot { padding: 8px 4px; gap: 4px; }
+  .pilot-lamp { width: 14px; height: 14px; }
+  .pilot-tag { font-size: 9px; }
+  
+  .ao-panel { padding: 12px; margin-bottom: 10px; }
+  .ao-grid { grid-template-columns: 1fr; gap: 10px; }
+  .ao-card { padding: 12px; gap: 10px; }
+  .ao-number { font-size: 32px; }
+  .step-btn { width: 36px; height: 36px; }
+  
+  .fb-grid { grid-template-columns: 1fr; gap: 10px; }
+  .fb-card { padding: 14px 12px; }
+  .fb-value { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="title">FAT Controller</div>
+    <div class="subtitle">Panel de Pruebas</div>
+  </div>
+  <div class="header-right">
+    <div class="conn-status" id="connStatus">
+      <div class="status-led" id="statusLed"></div>
+      <span id="statusLabel">DESCONECTADO</span>
+    </div>
+    <button class="btn btn-connect" id="btnConnect" onclick="toggleConnection()">CONECTAR</button>
+  </div>
+</div>
+
+<div class="offline-bar" id="bleWarning">
+  ⚠ WEB BLUETOOTH REQUIERE CHROME / EDGE — ABRE DESDE LOCALHOST O HTTPS
+</div>
+
+<!-- RELÉS + PILOTOS -->
+<div class="row">
+  <div class="panel">
+    <div class="panel-head">
+      <svg class="panel-icon" viewBox="0 0 4 16"><rect width="4" height="16" fill="#ff9200"/></svg>
+      <div class="panel-title">Salidas Digitales</div>
+      <button class="relay-reset" onclick="resetRelays()">⬛ RESET</button>
+      <div class="panel-count" id="relayCount">0 / 16 ON</div>
+    </div>
+    <div class="relay-grid" id="relayGrid"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-head">
+      <svg class="panel-icon" viewBox="0 0 4 16"><rect width="4" height="16" fill="#00d67a"/></svg>
+      <div class="panel-title">Entradas 110V</div>
+      <div class="panel-count" id="inputCount">0 / 16 ACTIVAS</div>
+    </div>
+    <div class="pilot-grid" id="pilotGrid"></div>
+  </div>
+</div>
+
+<!-- SALIDAS ANALÓGICAS 4-20 mA -->
+<div class="ao-panel">
+  <div class="panel-head">
+    <svg class="panel-icon" viewBox="0 0 4 16"><rect width="4" height="16" fill="#00a8ff"/></svg>
+    <div class="panel-title">Salidas Analógicas 4–20 <span style="text-transform:none">mA</span></div>
+  </div>
+  <div class="ao-grid" id="aoGrid"></div>
+</div>
+
+<!-- FEEDBACK ANALÓGICO -->
+<div class="fb-panel">
+  <div class="panel-head">
+    <svg class="panel-icon" viewBox="0 0 4 16"><rect width="4" height="16" fill="#00c8b4"/></svg>
+    <div class="panel-title">Feedback Analógico 4–20 <span style="text-transform:none">mA</span></div>
+  </div>
+  <div class="fb-grid" id="fbGrid"></div>
+</div>
+
+<div class="footer">
+  <span>ESP32-FAT · BLE GATT</span>
+  <span id="lastUpdate">—</span>
+  <span>FAT PANEL v1.2</span>
+</div>
+
+<script>
+/* ── BLE ───────────────────────────────────────────────── */
+const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+const CMD_UUID     = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+const STATUS_UUID  = 'beb5483e-36e1-4688-b7f5-ea07361b26a9';
+
+let bleDevice  = null;
+let cmdChar    = null;
+let relayState = 0;
+
+/* ── AO STATE ──────────────────────────────────────────── */
+const AO = Array.from({length:4}, () => ({
+  mA:     4.0,
+  mode:   'mA',
+  custom: { min:0, max:100, unit:'PSI' }
+}));
+
+/* ── SCALE HELPERS ─────────────────────────────────────── */
+const clamp = (v,a,b) => Math.min(b,Math.max(a,v));
+const mAtoT  = ma  => (ma - 4) / 16;
+const tToMA  = t   => 4 + clamp(t,0,1) * 16;
+
+function mAtoDisplay(ch) {
+  const t = mAtoT(AO[ch].mA);
+  const {mode, custom} = AO[ch];
+  if (mode==='mA')  return AO[ch].mA;
+  if (mode==='pct') return t * 100;
+  return custom.min + t * (custom.max - custom.min);
+}
+
+function displayToMA(ch, d) {
+  const {mode, custom} = AO[ch];
+  let t;
+  if (mode==='mA')  t = (d-4)/16;
+  else if (mode==='pct') t = d/100;
+  else t = (d-custom.min)/(custom.max-custom.min);
+  return tToMA(t);
+}
+
+function getStep(ch) {
+  const {mode, custom} = AO[ch];
+  if (mode==='mA')  return 0.1;
+  if (mode==='pct') return 1;
+  return Math.max(0.01, (custom.max-custom.min)/100);
+}
+
+function getUnit(ch) {
+  const {mode, custom} = AO[ch];
+  if (mode==='mA')  return 'mA';
+  if (mode==='pct') return '%';
+  return custom.unit || 'UND';
+}
+
+function getDMin(ch) {
+  const {mode, custom} = AO[ch];
+  return mode==='mA' ? 4 : mode==='pct' ? 0 : custom.min;
+}
+
+function getDMax(ch) {
+  const {mode, custom} = AO[ch];
+  return mode==='mA' ? 20 : mode==='pct' ? 100 : custom.max;
+}
+
+/* ── REFRESH AO CARD ───────────────────────────────────── */
+function refreshAO(ch) {
+  const t    = mAtoT(AO[ch].mA);
+  const pct  = t * 100;
+  const disp = mAtoDisplay(ch);
+  const unit = getUnit(ch);
+
+  const sl = document.getElementById(`ao-sl-${ch}`);
+  sl.value = Math.round(t * 1000);
+  sl.style.background = `linear-gradient(to right,var(--blue) ${pct}%,var(--border2) ${pct}%)`;
+
+  document.getElementById(`ao-num-${ch}`).textContent  = fmtVal(disp, ch);
+  document.getElementById(`ao-unit-${ch}`).textContent = unit;
+
+  document.getElementById(`ao-fill-${ch}`).style.width = pct + '%';
+
+  document.getElementById(`ao-maval-${ch}`).textContent = AO[ch].mA.toFixed(2) + ' mA';
+}
+
+function fmtVal(v, ch) {
+  const {mode, custom} = AO[ch];
+  if (mode==='mA')  return v.toFixed(2);
+  if (mode==='pct') return v.toFixed(1);
+  const range = custom.max - custom.min;
+  return range < 10 ? v.toFixed(2) : v.toFixed(1);
+}
+
+/* ── MODE SWITCH ───────────────────────────────────────── */
+function setMode(ch, mode) {
+  AO[ch].mode = mode;
+  document.querySelectorAll(`.mode-tab[data-ch="${ch}"]`)
+    .forEach(t => t.classList.toggle('active', t.dataset.mode===mode));
+  document.getElementById(`ccfg-${ch}`).classList.toggle('visible', mode==='custom');
+  document.getElementById(`ao-maref-${ch}`).style.display = mode==='mA' ? 'none' : '';
+  refreshAO(ch);
+}
+
+function updateCustom(ch) {
+  AO[ch].custom.min  = parseFloat(document.getElementById(`cfg-min-${ch}`).value)  || 0;
+  AO[ch].custom.max  = parseFloat(document.getElementById(`cfg-max-${ch}`).value)  || 100;
+  AO[ch].custom.unit = document.getElementById(`cfg-unit-${ch}`).value.trim() || 'UND';
+  refreshAO(ch);
+}
+
+/* ── SLIDER ────────────────────────────────────────────── */
+function onSliderInput(ch, el) {
+  AO[ch].mA = tToMA(parseInt(el.value)/1000);
+  refreshAO(ch);
+  sendAnalog(ch);
+}
+
+/* ── STEP BUTTONS (con hold) ───────────────────────────── */
+let _ht = null, _hi = null;
+function startStep(ch, dir) {
+  doStep(ch, dir);
+  _ht = setTimeout(() => { _hi = setInterval(() => doStep(ch, dir), 65); }, 340);
+}
+function stopStep() { clearTimeout(_ht); clearInterval(_hi); _ht=_hi=null; }
+function doStep(ch, dir) {
+  const step = getStep(ch);
+  const cur  = mAtoDisplay(ch);
+  const next = clamp(cur + dir*step, getDMin(ch), getDMax(ch));
+  AO[ch].mA  = displayToMA(ch, next);
+  refreshAO(ch);
+  sendAnalog(ch);
+}
+
+/* ── BUILD AO CARD ─────────────────────────────────────── */
+function buildAOCard(i) {
+  const div = document.createElement('div');
+  div.className = 'ao-card';
+  div.innerHTML = `
+    <div class="ao-card-head">
+      <div class="ao-ch-label">AO${i+1}</div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-ch="${i}" data-mode="mA"     onclick="setMode(${i},'mA')">mA</button>
+        <button class="mode-tab"        data-ch="${i}" data-mode="pct"    onclick="setMode(${i},'pct')">%</button>
+        <button class="mode-tab tab-custom" data-ch="${i}" data-mode="custom" onclick="setMode(${i},'custom')">Custom</button>
+      </div>
+    </div>
+
+    <div class="custom-config" id="ccfg-${i}">
+      <label>MIN</label>
+      <input type="number" id="cfg-min-${i}"  value="0"   onchange="updateCustom(${i})">
+      <span class="cfg-sep">→</span>
+      <label>MAX</label>
+      <input type="number" id="cfg-max-${i}"  value="100" onchange="updateCustom(${i})">
+      <label style="margin-left:4px">UNIDAD</label>
+      <input type="text"   id="cfg-unit-${i}" value="PSI" class="unit-in" onchange="updateCustom(${i})">
+    </div>
+
+    <div class="ao-slider-row">
+      <button class="step-btn"
+        onmousedown="startStep(${i},-1)" onmouseup="stopStep()" onmouseleave="stopStep()"
+        ontouchstart="startStep(${i},-1);event.preventDefault()" ontouchend="stopStep()">−</button>
+      <input type="range" class="ao-range" id="ao-sl-${i}"
+             min="0" max="1000" value="0"
+             oninput="onSliderInput(${i},this)">
+      <button class="step-btn"
+        onmousedown="startStep(${i},+1)" onmouseup="stopStep()" onmouseleave="stopStep()"
+        ontouchstart="startStep(${i},+1);event.preventDefault()" ontouchend="stopStep()">+</button>
+    </div>
+
+    <div class="ao-value-area">
+      <div style="flex:1">
+        <div class="ao-main-val">
+          <div class="ao-number" id="ao-num-${i}">4.00</div>
+          <div class="ao-unit"   id="ao-unit-${i}">mA</div>
+        </div>
+        <div class="ao-pct-bar">
+          <div class="ao-pct-fill" id="ao-fill-${i}"></div>
+        </div>
+      </div>
+      <div class="ao-ma-ref" id="ao-maref-${i}" style="display:none">
+        <div class="ao-ma-val" id="ao-maval-${i}">4.00 mA</div>
+        <div class="ao-ma-lbl">señal real</div>
+      </div>
+    </div>`;
+  return div;
+}
+
+/* ── BLE COMMANDS ──────────────────────────────────────── */
+async function sendCmd(type, idx, value) {
+  if (!cmdChar) return;
+  const b = new Uint8Array(4);
+  b[0]=type; b[1]=idx&0xFF; b[2]=(value>>8)&0xFF; b[3]=value&0xFF;
+  try { await cmdChar.writeValueWithoutResponse(b); } catch(e) { console.warn('CMD:',e); }
+}
+function sendAnalog(ch) { sendCmd(0x02, ch, Math.round(AO[ch].mA*100)); }
+
+function toggleRelay(i) {
+  const on = !!((relayState>>i)&1);
+  if(on) relayState &= ~(1<<i); else relayState |= (1<<i);
+  const newOn = !on;
+  const el = document.getElementById(`R${i}`);
+  el.className = 'relay-btn'+(newOn?' on':'');
+  el.querySelector('.relay-state').textContent = newOn?'ON':'OFF';
+  sendCmd(0x01, i, newOn?1:0);
+  updateRelayCount();
+}
+
+// ── RESET: un solo comando 0x03 ──
+function resetRelays() {
+  relayState = 0;
+  for(let i=0;i<16;i++){
+    const el=document.getElementById(`R${i}`);
+    el.className='relay-btn';
+    el.querySelector('.relay-state').textContent='OFF';
+  }
+  updateRelayCount();
+  sendCmd(0x03, 0, 0);
+}
+
+function updateRelayCount() {
+  let ron = 0;
+  for(let i=0;i<16;i++) if((relayState>>i)&1) ron++;
+  document.getElementById('relayCount').textContent = `${ron} / 16 ON`;
+}
+
+/* ── STATUS NOTIFICATION ───────────────────────────────── */
+function onStatus(evt) {
+  const dv = evt.target.value;
+  if (dv.byteLength < 10) return;
+  const relays = dv.getUint16(0,true);
+  const inputs = dv.getUint16(2,true);
+  relayState = relays;
+
+  let ron=0;
+  for(let i=0;i<16;i++){
+    const on=!!((relays>>i)&1); if(on)ron++;
+    const el=document.getElementById(`R${i}`);
+    el.className='relay-btn'+(on?' on':'');
+    el.querySelector('.relay-state').textContent=on?'ON':'OFF';
+  }
+  document.getElementById('relayCount').textContent=`${ron} / 16 ON`;
+
+  let ion=0;
+  for(let i=0;i<16;i++){
+    const on=!!((inputs>>i)&1); if(on)ion++;
+    document.getElementById(`P${i}`).className='pilot'+(on?' on':'');
+  }
+  document.getElementById('inputCount').textContent=`${ion} / 16 ACTIVAS`;
+
+  for(let i=0;i<3;i++){
+    if(4+i*2+1>=dv.byteLength) break;
+    const ma=dv.getUint16(4+i*2,true)/100;
+    const pct=clamp(((ma-4)/16)*100,0,100);
+    const ve=document.getElementById(`fb-val-${i}`);
+    const be=document.getElementById(`fb-bar-${i}`);
+    if(!ve) continue;
+    ve.textContent=ma.toFixed(2);
+    const cls=ma<3.5||ma>20.5?'error':ma<4||ma>20?'warn':'';
+    ve.className='fb-value'+(cls?` ${cls}`:'');
+    if(be){be.style.width=pct+'%';be.className='fb-bar'+(cls?` ${cls}`:'');}
+  }
+
+  const now=new Date();
+  document.getElementById('lastUpdate').textContent=
+    `ÚLTIMA LECTURA  ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+}
+
+/* ── BLE CONNECT ───────────────────────────────────────── */
+async function toggleConnection() {
+  if(bleDevice&&bleDevice.gatt.connected){bleDevice.gatt.disconnect();return;}
+  if(!navigator.bluetooth){document.getElementById('bleWarning').classList.add('show');return;}
+  setStatus('connecting');
+  try {
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters:[{name:'Banco_FAT_E-Skids'}], optionalServices:[SERVICE_UUID]
+    });
+    bleDevice.addEventListener('gattserverdisconnected',()=>{setStatus('off');cmdChar=null;});
+    const srv  = await bleDevice.gatt.connect();
+    const svc  = await srv.getPrimaryService(SERVICE_UUID);
+    cmdChar    = await svc.getCharacteristic(CMD_UUID);
+    const stc  = await svc.getCharacteristic(STATUS_UUID);
+    await stc.startNotifications();
+    stc.addEventListener('characteristicvaluechanged',onStatus);
+    setStatus('on');
+  } catch(e){console.warn('BLE:',e);setStatus('off');}
+}
+
+function setStatus(s) {
+  const led=document.getElementById('statusLed');
+  const lbl=document.getElementById('statusLabel');
+  const btn=document.getElementById('btnConnect');
+  const wrp=document.getElementById('connStatus');
+  wrp.className='conn-status'; led.className='status-led';
+  if(s==='on'){
+    led.classList.add('on'); lbl.textContent='Banco_FAT_E-Skids';
+    btn.textContent='DESCONECTAR'; btn.classList.add('active');
+  } else if(s==='connecting'){
+    wrp.classList.add('connecting'); lbl.textContent='CONECTANDO...';
+    btn.textContent='CANCELAR'; btn.classList.remove('active');
+  } else {
+    lbl.textContent='DESCONECTADO'; btn.textContent='CONECTAR'; btn.classList.remove('active');
+  }
+}
+
+/* ── BUILD UI ──────────────────────────────────────────── */
+(function buildUI(){
+  const rg=document.getElementById('relayGrid');
+  for(let i=0;i<16;i++){
+    const el=document.createElement('div');
+    el.className='relay-btn'; el.id=`R${i}`;
+    el.innerHTML=`<div class="relay-lamp"></div><div class="relay-tag">R${i+1}</div><div class="relay-state">OFF</div>`;
+    el.onclick=()=>toggleRelay(i); rg.appendChild(el);
+  }
+  const pg=document.getElementById('pilotGrid');
+  for(let i=0;i<16;i++){
+    const el=document.createElement('div');
+    el.className='pilot'; el.id=`P${i}`;
+    el.innerHTML=`<div class="pilot-lamp"></div><div class="pilot-tag">E${i+1}</div>`;
+    pg.appendChild(el);
+  }
+  const ag=document.getElementById('aoGrid');
+  for(let i=0;i<4;i++){ag.appendChild(buildAOCard(i));refreshAO(i);}
+  const fg=document.getElementById('fbGrid');
+  for(let i=0;i<3;i++){
+    const el=document.createElement('div'); el.className='fb-card';
+    el.innerHTML=`
+      <div class="fb-name">Feedback AI${i+1}</div>
+      <div class="fb-reading"><div class="fb-value" id="fb-val-${i}">--.-</div><div class="fb-unit">mA</div></div>
+      <div class="fb-bar-wrap"><div class="fb-bar" id="fb-bar-${i}"></div></div>
+      <div class="fb-range"><span>4 mA</span><span>12 mA</span><span>20 mA</span></div>`;
+    fg.appendChild(el);
+  }
+})();
+</script>
+</body>
+</html>
